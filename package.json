@@ -1,18 +1,27 @@
 {
   "name": "automated-market-maker",
   "version": "1.0.0",
-  "description": "Simplified Uniswap V2-style Automated Market Maker (AMM) built in Solidity with comprehensive testing and 100% line &amp; branch coverage.",
+  "description": "Simplified Uniswap V2-style Automated Market Maker (AMM) built in Solidity with comprehensive testing and 100% line & branch coverage.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "verify": "hardhat compile && hardhat test && hardhat coverage"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/raghavendraprasath/automated-market-maker.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "solidity",
+    "amm",
+    "uniswap-v2",
+    "hardhat",
+    "defi"
+  ],
+  "author": "Raghavendra Prasath Sridhar",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/raghavendraprasath/automated-market-maker/issues"

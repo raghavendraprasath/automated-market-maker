@@ -19,7 +19,7 @@ pids
 lib-cov
 
 # Coverage directory used by tools like istanbul
-coverage
+# (Homework submission keeps ./coverage HTML; see note near Hardhat section below.)
 *.lcov
 
 # nyc test coverage
@@ -153,8 +153,8 @@ node_modules
 /typechain
 /typechain-types
 
-# solidity-coverage files
-/coverage
+# solidity-coverage: keep the HTML report for homework submission.
+# Ignore only the raw machine-readable dump (HTML under /coverage is tracked).
 /coverage.json
 
 # Hardhat Ignition default folder for deployments against a local node
