@@ -61,15 +61,6 @@ Liquidity Provider                  Trader
 └──────────────────────────────────────────────┘
 ```
 
-```mermaid
-flowchart LR
-  LP[Liquidity Provider] -->|deposit / redeem| AMM[SimpleAMM]
-  Trader[Trader] -->|swap| AMM
-  AMM --> RA[reserveA]
-  AMM --> RB[reserveB]
-  AMM --> Shares[LP shares]
-```
-
 **Data flow:** providers deposit both tokens and receive shares → traders swap one token for the other under the constant-product rule → providers redeem shares for a proportional slice of both reserves.
 
 This educational implementation is **fee-free**. Uniswap V2 charges 0.3% on input; a fee would only increase `k` over time for LPs.
