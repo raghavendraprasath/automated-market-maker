@@ -470,6 +470,15 @@ npm run coverage  # regenerates coverage/lcov-report/index.html
 | SimpleAMMFactory.sol | 100% | 100% | 100% | 100% |
 | **All files** | **100%** | **100%** | **100%** | **100%** |
 
+### Screenshot – Coverage after the Homework 5 changes
+
+| Thumbnail | Description |
+|---|---|
+| [![Coverage after Homework 5](screenshots/hw5_coverage_html.png)](screenshots/hw5_coverage_html.png) | `coverage/lcov-report/contracts/index.html` — both contracts at 100%: 53/53 statements, 68/68 branches, 14/14 functions, 97/97 lines. Captured with `npm run screenshots:coverage`. |
+
+The Homework 4 coverage screenshots further up predate this work: they show **38 passing** and only
+`SimpleAMM.sol`, which is the state that assignment was submitted in. This shot is the current one.
+
 ---
 
 # Part 2 – Pool selection and actions
@@ -886,6 +895,7 @@ automated-market-maker/
 | `npm run deploy:sepolia` | root | Deploy + seed on Sepolia |
 | `npm run export-abis` | root | Regenerate `web/lib/abis.ts` |
 | `npm run screenshots` | root | Recapture the UI screenshots (needs the UI served on port 3000) |
+| `npm run screenshots:coverage` | root | Recapture the coverage report screenshot (run after `npm run coverage`) |
 | `npm run dev` | `web/` | UI development server |
 | `npm run build` | `web/` | Production build |
 | `npm start` | `web/` | Serve the production build |
