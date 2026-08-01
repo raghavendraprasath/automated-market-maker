@@ -1,0 +1,45 @@
+{
+  "chainId": 11155111,
+  "network": "sepolia",
+  "factory": "0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA",
+  "deployBlock": 11394240,
+  "deployer": "0xfeE80A2669A65B7eC500815F9A2CceD6F0C12620",
+  "deployedAt": "2026-08-01T05:09:49.086Z",
+  "tokens": [
+    {
+      "name": "Mock Wrapped Ether",
+      "symbol": "mWETH",
+      "address": "0xc12F850dB33F7029edeFE06c7589f38B588eA04e"
+    },
+    {
+      "name": "Mock USD Coin",
+      "symbol": "mUSDC",
+      "address": "0xADaa9261bE4972904BC581d00503d6ac3D38262D"
+    },
+    {
+      "name": "Mock Dai Stablecoin",
+      "symbol": "mDAI",
+      "address": "0x57bD8BFd3Cc7cB5941F5A79A982322809C1796e4"
+    }
+  ],
+  "pools": [
+    {
+      "address": "0x10Ea97f122dCDAa879084735a2b35d61519EF503",
+      "tokenA": "0xc12F850dB33F7029edeFE06c7589f38B588eA04e",
+      "tokenB": "0xADaa9261bE4972904BC581d00503d6ac3D38262D",
+      "label": "mWETH/mUSDC"
+    },
+    {
+      "address": "0x3f384962f2CcDACe2b2DFD863e13cc2eE079BD83",
+      "tokenA": "0xc12F850dB33F7029edeFE06c7589f38B588eA04e",
+      "tokenB": "0x57bD8BFd3Cc7cB5941F5A79A982322809C1796e4",
+      "label": "mWETH/mDAI"
+    },
+    {
+      "address": "0x084B9bFE1efF0DaA86C87E2C17864Ce9c007c331",
+      "tokenA": "0xADaa9261bE4972904BC581d00503d6ac3D38262D",
+      "tokenB": "0x57bD8BFd3Cc7cB5941F5A79A982322809C1796e4",
+      "label": "mUSDC/mDAI"
+    }
+  ]
+}

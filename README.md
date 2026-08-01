@@ -17,8 +17,14 @@ coverage rather than the 38 described in the Homework 4 sections below. Everythi
 assignments — contracts, tests, coverage, UI, log decoding, and deployment — is in this one document.
 
 **Live UI:** _fill in after deploying to Vercel_
+**Live contracts:** Ethereum Sepolia — factory
+[`0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA`](https://sepolia.etherscan.io/address/0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA),
+three seeded pools ([all addresses](#deployed-addresses-sepolia))
 
 [![SimpleAMM Console](screenshots/hw5_ui_dashboard.png)](screenshots/hw5_ui_dashboard.png)
+
+The dashboard above is this live Sepolia deployment: three pools discovered through the factory, the
+reserves curve with its previous curve behind it, and 7 execution prices decoded out of `eth_getLogs`.
 
 ## Quick start
 
@@ -646,7 +652,7 @@ inspectable from the browser.
 
 | Thumbnail | Description |
 |---|---|
-| [![Raw eth_getLogs](screenshots/hw5_raw_getlogs.png)](screenshots/hw5_raw_getlogs.png) | One request over blocks 29 → 53 returning 18 decoded events, with the outgoing JSON-RPC payload, an untouched log, the same log after `decodeEventLog` (indexed topics plus data words), and the topic0 table. |
+| [![Raw eth_getLogs](screenshots/hw5_raw_getlogs.png)](screenshots/hw5_raw_getlogs.png) | One request over Sepolia blocks 11,394,240 → 11,394,298 returning 18 decoded events, with the outgoing JSON-RPC payload, an untouched log, the same log after `decodeEventLog` (indexed topics plus data words), and the topic0 table. |
 
 ---
 
@@ -676,7 +682,7 @@ by `npm run deploy:sepolia`.
 | `NEXT_PUBLIC_CHAIN_ID` | no (defaults to Sepolia) | Chain the UI reads from: `11155111` or `31337` |
 | `NEXT_PUBLIC_FACTORY_ADDRESS` | no | Overrides the factory from `web/lib/deployments.json` |
 | `NEXT_PUBLIC_DEPLOY_BLOCK` | no | `fromBlock` for `eth_getLogs` |
-| `NEXT_PUBLIC_SEPOLIA_RPC_URL` | no | Keyed RPC; without it, viem's keyless public Sepolia endpoint is used and log queries are chunked to its 1,000-block limit |
+| `NEXT_PUBLIC_SEPOLIA_RPC_URL` | no | Sepolia endpoint. `https://sepolia.drpc.org` is recommended; without it viem's default is used and log queries chunk to its 1,000-block limit ([details](#on-the-rpc-endpoint)) |
 
 ## Deployment files
 
@@ -722,6 +728,15 @@ NEXT_PUBLIC_FACTORY_ADDRESS=0x...
 NEXT_PUBLIC_DEPLOY_BLOCK=...
 ```
 
+That sequence is roughly 30 transactions, and waiting for each confirmation on a public testnet RPC
+takes several minutes end to end — long enough that a dropped connection is routine. The first run here
+died on one, after the tokens and two pools were already on-chain, which throws the whole run away
+because there is no resume point. Every call in the script is therefore retried on transient failures
+(connection resets, invalid JSON-RPC responses, 5xx, rate limits) with a backoff. A retried send can
+race a transaction the previous attempt already broadcast; that surfaces as `already known` or
+`nonce too low`, which the script treats as "already in flight" and waits for the pending nonce to clear
+instead of double-spending it. The whole seeded deploy costs about **0.008 ETH** at 1 gwei.
+
 Optional Etherscan verification:
 
 ```bash
@@ -731,11 +746,23 @@ npx hardhat verify --network sepolia <POOL_ADDRESS> <TOKEN_A> <TOKEN_B>
 
 ### Deployed addresses (Sepolia)
 
+Chain id `11155111`, factory deployed in block **11394240**, which is the `fromBlock` every
+`eth_getLogs` query starts from. The full record is in
+[`deployments/sepolia-11155111.json`](deployments/sepolia-11155111.json).
+
 | Contract | Address |
 |---|---|
-| `SimpleAMMFactory` | _fill in after running `npm run deploy:sepolia`_ |
-| `mWETH` / `mUSDC` / `mDAI` | _see `deployments/sepolia-11155111.json`_ |
-| Pools | _see `deployments/sepolia-11155111.json`_ |
+| `SimpleAMMFactory` | [`0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA`](https://sepolia.etherscan.io/address/0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA) |
+| `mWETH` (Mock Wrapped Ether) | [`0xc12F850dB33F7029edeFE06c7589f38B588eA04e`](https://sepolia.etherscan.io/address/0xc12F850dB33F7029edeFE06c7589f38B588eA04e) |
+| `mUSDC` (Mock USD Coin) | [`0xADaa9261bE4972904BC581d00503d6ac3D38262D`](https://sepolia.etherscan.io/address/0xADaa9261bE4972904BC581d00503d6ac3D38262D) |
+| `mDAI` (Mock Dai Stablecoin) | [`0x57bD8BFd3Cc7cB5941F5A79A982322809C1796e4`](https://sepolia.etherscan.io/address/0x57bD8BFd3Cc7cB5941F5A79A982322809C1796e4) |
+| Pool `mWETH/mUSDC` | [`0x10Ea97f122dCDAa879084735a2b35d61519EF503`](https://sepolia.etherscan.io/address/0x10Ea97f122dCDAa879084735a2b35d61519EF503) |
+| Pool `mWETH/mDAI` | [`0x3f384962f2CcDACe2b2DFD863e13cc2eE079BD83`](https://sepolia.etherscan.io/address/0x3f384962f2CcDACe2b2DFD863e13cc2eE079BD83) |
+| Pool `mUSDC/mDAI` | [`0x084B9bFE1efF0DaA86C87E2C17864Ce9c007c331`](https://sepolia.etherscan.io/address/0x084B9bFE1efF0DaA86C87E2C17864Ce9c007c331) |
+
+The deploy seeded all three pools with liquidity, then 11 swaps and a ratio-matched top-up that raises
+`k`, so the curve chart shows both the current and previous curve and the price distribution has real
+spread on first load. Every screenshot in this document was taken against this deployment.
 
 ## UI (Vercel)
 
@@ -747,9 +774,12 @@ npx hardhat verify --network sepolia <POOL_ADDRESS> <TOKEN_A> <TOKEN_B>
    | Key | Value |
    |---|---|
    | `NEXT_PUBLIC_CHAIN_ID` | `11155111` |
-   | `NEXT_PUBLIC_FACTORY_ADDRESS` | factory address from the deploy output |
-   | `NEXT_PUBLIC_DEPLOY_BLOCK` | deployment block from the deploy output |
-   | `NEXT_PUBLIC_SEPOLIA_RPC_URL` | optional — see the note below |
+   | `NEXT_PUBLIC_SEPOLIA_RPC_URL` | `https://sepolia.drpc.org` — see the note below |
+   | `NEXT_PUBLIC_FACTORY_ADDRESS` | `0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA` (optional) |
+   | `NEXT_PUBLIC_DEPLOY_BLOCK` | `11394240` (optional) |
+
+   The last two are optional because the deploy script commits the same values to
+   [`web/lib/deployments.json`](web/lib/deployments.json), which the UI falls back to.
 
 4. Deploy, then open the URL with MetaMask on Sepolia.
 
@@ -758,16 +788,33 @@ fresh deployment before it takes effect.
 
 ### On the RPC endpoint
 
-Leaving `NEXT_PUBLIC_SEPOLIA_RPC_URL` unset is fine: wagmi then uses viem's built-in public Sepolia
-endpoint, which needs no account or API key. That endpoint caps `eth_getLogs` at a 1,000-block window,
-so `fetchPoolHistory` starts with a 9,500-block window and narrows it (÷4, floor 500) the first time a
-provider rejects the range, then keeps the working size for the remaining chunks. A fresh deployment is
-therefore read in ~10 requests with no configuration.
+No account or API key is needed, but the choice of keyless endpoint decides **how much history stays
+reachable**, so it is worth understanding. Each request is capped at the current chunk size, so a
+provider's maximum window does not limit the total range — it limits how many requests that range
+costs, and `MAX_REQUESTS` (30) is the safety valve that stops runaway polling. A provider that allows
+9,500-block chunks therefore keeps ~285,000 blocks of history reachable (about 39 days of Sepolia),
+while one capped at 1,000 blocks settles at 593-block chunks and reaches only ~17,800.
 
-Setting the variable to a keyed endpoint (Alchemy/Infura free tier) only makes history cheaper — the
-whole range comes back in a single request. Note that not every keyless endpoint works: some, such as
-`ethereum-sepolia-rpc.publicnode.com`, serve only the chain head and reject historical log queries
-outright. The fetcher surfaces that as an explicit message rather than an empty chart.
+Measured against this deployment:
+
+| Endpoint | `eth_getLogs` behaviour | Reachable history |
+|---|---|---|
+| `sepolia.drpc.org` | serves 9,500-block windows; rejects ~50,000 with a bare HTTP 400 | ~285,000 blocks |
+| `11155111.rpc.thirdweb.com` (viem's default) | caps windows at 1,000 blocks, so chunks settle at 593 | ~17,800 blocks |
+| `ethereum-sepolia-rpc.publicnode.com` | rejects log queries outright with HTTP 403 | none |
+| `1rpc.io/sepolia` | caps windows at 50 blocks | impractical |
+
+Hence `NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.drpc.org`. Leaving it unset still works — viem's
+default endpoint just narrows to 593-block chunks and, on a deployment more than a couple of weeks old,
+would start truncating the oldest history. A keyed endpoint (Alchemy/Infura free tier) returns the whole
+range in one request.
+
+Two details the fetcher handles because of the above: over-wide windows are sometimes refused at the
+HTTP layer with no message body, so a 400 or 413 status is treated as a range rejection and triggers
+narrowing rather than an error; and an endpoint that refuses history outright is surfaced as an explicit
+message instead of a silently empty chart. drpc's free plan also rejects JSON-RPC batches larger than
+three, which the UI never trips because `http()` is configured without batching and `useReadContracts`
+goes through a single multicall3 `eth_call`.
 
 **Live URL:** _fill in after deploying to Vercel_
 
@@ -838,7 +885,7 @@ automated-market-maker/
 | `npm run deploy:local` | root | Deploy + seed against the local node |
 | `npm run deploy:sepolia` | root | Deploy + seed on Sepolia |
 | `npm run export-abis` | root | Regenerate `web/lib/abis.ts` |
-| `npm run screenshots` | root | Recapture the UI screenshots (needs the local stack running) |
+| `npm run screenshots` | root | Recapture the UI screenshots (needs the UI served on port 3000) |
 | `npm run dev` | `web/` | UI development server |
 | `npm run build` | `web/` | Production build |
 | `npm start` | `web/` | Serve the production build |
@@ -853,7 +900,7 @@ automated-market-maker/
 | 3 | Deposit / redeem / swap | `ActionPanel`, with approvals and slippage |
 | 4 | Reserves curve chart with point P | `ReservesCurveChart` |
 | 5 | Execution price distribution of past swaps | `PriceDistributionChart`, from `eth_getLogs` |
-| 6 | Contracts on a public testnet | Sepolia — _add addresses above_ |
+| 6 | Contracts on a public testnet | Sepolia — [addresses](#deployed-addresses-sepolia), factory [`0x4717C3…21dA`](https://sepolia.etherscan.io/address/0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA) |
 | 7 | UI on a hosting provider | Vercel — _add URL above_ |
 
 ---

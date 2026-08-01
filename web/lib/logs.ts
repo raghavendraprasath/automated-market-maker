@@ -225,9 +225,30 @@ function rpcErrorMessage(error: unknown): string {
 
 /** True when the provider refused the window size rather than the query itself. */
 function isRangeRejection(error: unknown): boolean {
-  return /exceed|too large|too many|too wide|block range|limit/i.test(
-    rpcErrorMessage(error)
-  );
+  if (
+    /exceed|too large|too many|too wide|block range|limit/i.test(
+      rpcErrorMessage(error)
+    )
+  ) {
+    return true;
+  }
+
+  // Some endpoints reject an over-wide window at the HTTP layer with no usable message body,
+  // so the status code is the only signal that a narrower window is worth trying.
+  const status = httpStatus(error);
+  return status === 400 || status === 413;
+}
+
+function httpStatus(error: unknown): number | undefined {
+  let current = error;
+
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    const { status, cause } = current as { status?: number; cause?: unknown };
+    if (typeof status === "number") return status;
+    current = cause;
+  }
+
+  return undefined;
 }
 
 function explainLogsFailure(error: unknown): Error {

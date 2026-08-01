@@ -56,15 +56,32 @@ const POST_DEPOSIT_SWAPS = [
 const OUTPUT_FILE = path.join(__dirname, "..", "web", "lib", "deployments.json");
 const RECORD_DIR = path.join(__dirname, "..", "deployments");
 
+// Seeding takes ~30 sequential transactions, which on a public testnet RPC means several
+// minutes of round trips. Dropped connections are routine over that window, so every call
+// is retried rather than losing the whole run to one blip.
+const TRANSIENT_ERROR =
+  /invalid json-rpc response|connection termination|connection reset|econnreset|etimedout|socket hang up|socket disconnected|network socket|timeout|bad gateway|service unavailable|50[234]|too many requests|rate limit/i;
+
+// A retry can race a transaction the previous attempt already broadcast.
+const ALREADY_BROADCAST =
+  /already known|nonce too low|replacement transaction underpriced|already exists/i;
+
+const RETRY_ATTEMPTS = 6;
+
+let deployerAddress;
+
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const chainId = Number((await ethers.provider.getNetwork()).chainId);
+  deployerAddress = deployer.address;
+  const chainId = Number((await withRetry("getNetwork", () => ethers.provider.getNetwork())).chainId);
 
   console.log(`Network:  ${network.name} (chainId ${chainId})`);
   console.log(`Deployer: ${deployer.address}`);
   console.log(
     `Balance:  ${ethers.formatEther(
-      await ethers.provider.getBalance(deployer.address)
+      await withRetry("getBalance", () =>
+        ethers.provider.getBalance(deployer.address)
+      )
     )} ETH\n`
   );
 
@@ -72,12 +89,15 @@ async function main() {
   const tokens = {};
 
   for (const token of TOKENS) {
-    const contract = await MockERC20.deploy(
-      token.name,
-      token.symbol,
-      TOKEN_SUPPLY
-    );
-    await contract.waitForDeployment();
+    const contract = await withRetry(`deploy ${token.symbol}`, async () => {
+      const deployed = await MockERC20.deploy(
+        token.name,
+        token.symbol,
+        TOKEN_SUPPLY
+      );
+      await deployed.waitForDeployment();
+      return deployed;
+    });
 
     tokens[token.key] = {
       ...token,
@@ -89,11 +109,18 @@ async function main() {
   }
 
   const SimpleAMMFactory = await ethers.getContractFactory("SimpleAMMFactory");
-  const factory = await SimpleAMMFactory.deploy();
-  await factory.waitForDeployment();
+  const factory = await withRetry("deploy SimpleAMMFactory", async () => {
+    const deployed = await SimpleAMMFactory.deploy();
+    await deployed.waitForDeployment();
+    return deployed;
+  });
 
   const factoryAddress = await factory.getAddress();
-  const deployBlock = (await factory.deploymentTransaction().wait()).blockNumber;
+  const deployBlock = (
+    await withRetry("factory receipt", () =>
+      factory.deploymentTransaction().wait()
+    )
+  ).blockNumber;
 
   console.log(`\nFactory       ${factoryAddress}`);
   console.log(`Deploy block  ${deployBlock}\n`);
@@ -104,21 +131,27 @@ async function main() {
     const tokenA = tokens[spec.a];
     const tokenB = tokens[spec.b];
 
-    await (await factory.createPair(tokenA.address, tokenB.address)).wait();
+    await sendTx(`createPair ${tokenA.symbol}/${tokenB.symbol}`, () =>
+      factory.createPair(tokenA.address, tokenB.address)
+    );
 
-    const poolAddress = await factory.getPair(tokenA.address, tokenB.address);
+    const poolAddress = await withRetry("getPair", () =>
+      factory.getPair(tokenA.address, tokenB.address)
+    );
     const pool = await ethers.getContractAt("SimpleAMM", poolAddress);
 
-    await (
-      await tokenA.contract.approve(poolAddress, ethers.MaxUint256)
-    ).wait();
-    await (
-      await tokenB.contract.approve(poolAddress, ethers.MaxUint256)
-    ).wait();
+    await sendTx(`approve ${tokenA.symbol}`, () =>
+      tokenA.contract.approve(poolAddress, ethers.MaxUint256)
+    );
+    await sendTx(`approve ${tokenB.symbol}`, () =>
+      tokenB.contract.approve(poolAddress, ethers.MaxUint256)
+    );
 
     const amountA = ethers.parseEther(spec.amountA);
     const amountB = ethers.parseEther(spec.amountB);
-    await (await pool.deposit(amountA, amountB)).wait();
+    await sendTx(`deposit ${tokenA.symbol}/${tokenB.symbol}`, () =>
+      pool.deposit(amountA, amountB)
+    );
 
     pools.push({
       address: poolAddress,
@@ -139,11 +172,15 @@ async function main() {
   await runSwaps(SEED_SWAPS, pools, tokens);
 
   const topUpPool = pools[TOP_UP.pool];
-  const [topUpReserveA, topUpReserveB] = await topUpPool.contract.getReserves();
+  const [topUpReserveA, topUpReserveB] = await withRetry("getReserves", () =>
+    topUpPool.contract.getReserves()
+  );
   const topUpAmountA = ethers.parseEther(TOP_UP.amountA);
   const topUpAmountB = (topUpAmountA * topUpReserveB) / topUpReserveA;
 
-  await (await topUpPool.contract.deposit(topUpAmountA, topUpAmountB)).wait();
+  await sendTx("top-up deposit", () =>
+    topUpPool.contract.deposit(topUpAmountA, topUpAmountB)
+  );
   console.log(
     `\nTopped up ${topUpPool.tokenA}/${topUpPool.tokenB} with ` +
       `${TOP_UP.amountA} ${topUpPool.tokenA} + ` +
@@ -187,11 +224,85 @@ async function runSwaps(swaps, pools, tokens) {
     const tokenIn = tokens[swap.tokenIn];
     const amountIn = ethers.parseEther(swap.amountIn);
 
-    await (await pool.contract.swap(tokenIn.address, amountIn, 0)).wait();
+    await sendTx(`swap ${swap.amountIn} ${tokenIn.symbol}`, () =>
+      pool.contract.swap(tokenIn.address, amountIn, 0)
+    );
     console.log(
       `  ${pool.tokenA}/${pool.tokenB}: sold ${swap.amountIn} ${tokenIn.symbol}`
     );
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorText(error) {
+  return [
+    error.shortMessage,
+    error.info?.error?.message,
+    error.message,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function withRetry(label, run) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      const text = errorText(error);
+      if (attempt >= RETRY_ATTEMPTS || !TRANSIENT_ERROR.test(text)) throw error;
+
+      const seconds = 3 * attempt;
+      console.log(
+        `  ! ${label}: ${text.split("\n")[0].slice(0, 90)} - retry ${attempt} in ${seconds}s`
+      );
+      await sleep(seconds * 1000);
+    }
+  }
+}
+
+/**
+ * Sends a transaction and waits for it, retrying transient RPC failures. A connection can
+ * drop after the node accepted the transaction but before we read the hash back, so a retry
+ * may collide with the in-flight original; that surfaces as "already known"/"nonce too low"
+ * and only requires waiting for the pending nonce to clear.
+ */
+async function sendTx(label, send) {
+  const sent = await withRetry(label, async () => {
+    try {
+      return await send();
+    } catch (error) {
+      if (!ALREADY_BROADCAST.test(errorText(error))) throw error;
+
+      console.log(`  ! ${label}: already broadcast - waiting for it to confirm`);
+      await waitForPendingNonce();
+      return null;
+    }
+  });
+
+  if (!sent) return null;
+  return withRetry(`${label} confirmation`, () => sent.wait());
+}
+
+async function waitForPendingNonce() {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const [mined, pending] = await Promise.all([
+      withRetry("nonce(latest)", () =>
+        ethers.provider.getTransactionCount(deployerAddress, "latest")
+      ),
+      withRetry("nonce(pending)", () =>
+        ethers.provider.getTransactionCount(deployerAddress, "pending")
+      ),
+    ]);
+
+    if (mined === pending) return;
+    await sleep(4000);
+  }
+
+  throw new Error("Timed out waiting for a broadcast transaction to confirm");
 }
 
 function writeDeployments(chainId, record) {
