@@ -40,13 +40,26 @@ export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-/** Parses user input, tolerating empty strings and stray whitespace. */
+/**
+ * Exact, ungrouped text for an amount, for writing into an input.
+ *
+ * `formatAmount` is for display and inserts thousands separators, which `parseAmount` would have to
+ * undo and which look wrong inside a text field.
+ */
+export function toInputAmount(amount: bigint, decimals: number): string {
+  return formatUnits(amount, decimals);
+}
+
+/**
+ * Parses user input, tolerating empty strings, stray whitespace, and thousands separators (people
+ * paste grouped numbers, and a "Max" button may fill one in).
+ */
 export function parseAmount(value: string, decimals: number): bigint | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
+  const cleaned = value.replace(/[,\s_]/g, "");
+  if (!cleaned) return undefined;
 
   try {
-    const parsed = parseUnits(trimmed, decimals);
+    const parsed = parseUnits(cleaned, decimals);
     return parsed > 0n ? parsed : undefined;
   } catch {
     return undefined;

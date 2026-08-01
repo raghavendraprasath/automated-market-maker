@@ -7,7 +7,7 @@ import { simpleAmmAbi } from "@/lib/abis";
 import { previewRedeem } from "@/lib/amm";
 import { LP_DECIMALS } from "@/lib/constants";
 import { targetChainId } from "@/lib/deployments";
-import { formatAmount, formatPercent, parseAmount } from "@/lib/format";
+import { formatAmount, formatPercent, parseAmount, toInputAmount } from "@/lib/format";
 import type { Pool } from "@/lib/hooks/usePools";
 import { useTxRunner } from "@/lib/hooks/useTxRunner";
 import { AmountField, Stat, TxFeedback } from "./ui";
@@ -85,9 +85,7 @@ export function RedeemForm({
         value={input}
         onChange={setInput}
         suffix="LP"
-        onMax={() =>
-          setInput(formatAmount(pool.userLiquidity, LP_DECIMALS, LP_DECIMALS))
-        }
+        onMax={() => setInput(toInputAmount(pool.userLiquidity, LP_DECIMALS))}
         hint={
           <span className="mono">
             yours {formatAmount(pool.userLiquidity, LP_DECIMALS, 6)}
@@ -104,11 +102,7 @@ export function RedeemForm({
             disabled={pool.userLiquidity === 0n}
             onClick={() =>
               setInput(
-                formatAmount(
-                  (pool.userLiquidity * BigInt(percent)) / 100n,
-                  LP_DECIMALS,
-                  LP_DECIMALS
-                )
+                toInputAmount((pool.userLiquidity * BigInt(percent)) / 100n, LP_DECIMALS)
               )
             }
           >

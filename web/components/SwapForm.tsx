@@ -7,7 +7,13 @@ import { simpleAmmAbi } from "@/lib/abis";
 import { applySlippage, getAmountOut, priceImpact } from "@/lib/amm";
 import { SLIPPAGE_OPTIONS } from "@/lib/constants";
 import { targetChainId } from "@/lib/deployments";
-import { formatAmount, formatNumber, formatPercent, parseAmount } from "@/lib/format";
+import {
+  formatAmount,
+  formatNumber,
+  formatPercent,
+  parseAmount,
+  toInputAmount,
+} from "@/lib/format";
 import type { Pool } from "@/lib/hooks/usePools";
 import { useTxRunner } from "@/lib/hooks/useTxRunner";
 import { AmountField, Stat, TxFeedback } from "./ui";
@@ -139,9 +145,7 @@ export function SwapForm({
         value={amount}
         onChange={setAmount}
         suffix={tokenIn.symbol}
-        onMax={() =>
-          setAmount(formatAmount(balanceIn, tokenIn.decimals, tokenIn.decimals))
-        }
+        onMax={() => setAmount(toInputAmount(balanceIn, tokenIn.decimals))}
         hint={
           <span className="mono">
             balance {formatAmount(balanceIn, tokenIn.decimals, 4)}

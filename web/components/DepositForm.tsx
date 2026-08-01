@@ -7,7 +7,13 @@ import { simpleAmmAbi } from "@/lib/abis";
 import { matchingDepositAmount, previewDepositShares } from "@/lib/amm";
 import { LP_DECIMALS } from "@/lib/constants";
 import { targetChainId } from "@/lib/deployments";
-import { formatAmount, formatNumber, formatPercent, parseAmount } from "@/lib/format";
+import {
+  formatAmount,
+  formatNumber,
+  formatPercent,
+  parseAmount,
+  toInputAmount,
+} from "@/lib/format";
 import type { Pool } from "@/lib/hooks/usePools";
 import { useTxRunner } from "@/lib/hooks/useTxRunner";
 import { AmountField, Stat, TxFeedback } from "./ui";
@@ -67,9 +73,7 @@ export function DepositForm({
     }
 
     const matched = matchingDepositAmount(parsed, pool.reserveA, pool.reserveB);
-    setAmountBInput(
-      formatAmount(matched, pool.tokenB.decimals, pool.tokenB.decimals)
-    );
+    setAmountBInput(toInputAmount(matched, pool.tokenB.decimals));
   }
 
   function syncFromB(value: string) {
@@ -83,9 +87,7 @@ export function DepositForm({
     }
 
     const matched = matchingDepositAmount(parsed, pool.reserveB, pool.reserveA);
-    setAmountAInput(
-      formatAmount(matched, pool.tokenA.decimals, pool.tokenA.decimals)
-    );
+    setAmountAInput(toInputAmount(matched, pool.tokenA.decimals));
   }
 
   const insufficient =
@@ -162,11 +164,7 @@ export function DepositForm({
         value={amountAInput}
         onChange={syncFromA}
         suffix={pool.tokenA.symbol}
-        onMax={() =>
-          syncFromA(
-            formatAmount(position.balanceA, pool.tokenA.decimals, pool.tokenA.decimals)
-          )
-        }
+        onMax={() => syncFromA(toInputAmount(position.balanceA, pool.tokenA.decimals))}
         hint={
           <span className="mono">
             balance {formatAmount(position.balanceA, pool.tokenA.decimals, 4)}
@@ -179,11 +177,7 @@ export function DepositForm({
         value={amountBInput}
         onChange={syncFromB}
         suffix={pool.tokenB.symbol}
-        onMax={() =>
-          syncFromB(
-            formatAmount(position.balanceB, pool.tokenB.decimals, pool.tokenB.decimals)
-          )
-        }
+        onMax={() => syncFromB(toInputAmount(position.balanceB, pool.tokenB.decimals))}
         hint={
           <span className="mono">
             balance {formatAmount(position.balanceB, pool.tokenB.decimals, 4)}
