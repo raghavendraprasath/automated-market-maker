@@ -112,6 +112,52 @@ describe("SimpleAMM", function () {
         amm.getAmountOut(SWAP_AMOUNT, LIQUIDITY, 0)
       ).to.be.revertedWithCustomError(amm, "InsufficientLiquidity");
     });
+
+    it("reports the full pool state for an account", async function () {
+      await amm.connect(alice).deposit(LIQUIDITY, LIQUIDITY * 2n);
+
+      const state = await amm.poolState(alice.address);
+
+      expect(state.tokenAAddress).to.equal(await tokenA.getAddress());
+      expect(state.tokenBAddress).to.equal(await tokenB.getAddress());
+      expect(state.currentReserveA).to.equal(LIQUIDITY);
+      expect(state.currentReserveB).to.equal(LIQUIDITY * 2n);
+      expect(state.liquiditySupply).to.equal(await amm.totalLiquidity());
+      expect(state.accountLiquidity).to.equal(
+        await amm.getLiquidity(alice.address)
+      );
+      expect((await amm.poolState(bob.address)).accountLiquidity).to.equal(0);
+    });
+
+    it("quotes a swap in both directions against live reserves", async function () {
+      await amm.connect(alice).deposit(LIQUIDITY, LIQUIDITY * 2n);
+
+      const quoteAtoB = await amm.quoteSwap(
+        await tokenA.getAddress(),
+        SWAP_AMOUNT
+      );
+      expect(quoteAtoB.tokenOut).to.equal(await tokenB.getAddress());
+      expect(quoteAtoB.amountOut).to.equal(
+        await amm.getAmountOut(SWAP_AMOUNT, LIQUIDITY, LIQUIDITY * 2n)
+      );
+
+      const quoteBtoA = await amm.quoteSwap(
+        await tokenB.getAddress(),
+        SWAP_AMOUNT
+      );
+      expect(quoteBtoA.tokenOut).to.equal(await tokenA.getAddress());
+      expect(quoteBtoA.amountOut).to.equal(
+        await amm.getAmountOut(SWAP_AMOUNT, LIQUIDITY * 2n, LIQUIDITY)
+      );
+    });
+
+    it("reverts quoteSwap for a token outside the pair", async function () {
+      await amm.connect(alice).deposit(LIQUIDITY, LIQUIDITY);
+
+      await expect(
+        amm.quoteSwap(ethers.ZeroAddress, SWAP_AMOUNT)
+      ).to.be.revertedWithCustomError(amm, "InvalidSwapToken");
+    });
   });
 
   describe("Deposit", function () {
@@ -123,7 +169,16 @@ describe("SimpleAMM", function () {
 
       await expect(amm.connect(alice).deposit(amountA, amountB))
         .to.emit(amm, "LiquidityDeposited")
-        .withArgs(alice.address, amountA, amountB, expectedLiquidity);
+        .withArgs(
+          alice.address,
+          amountA,
+          amountB,
+          expectedLiquidity,
+          amountA,
+          amountB
+        )
+        .and.to.emit(amm, "Sync")
+        .withArgs(amountA, amountB);
 
       expect(await amm.totalLiquidity()).to.equal(expectedLiquidity);
       expect(await amm.getLiquidity(alice.address)).to.equal(expectedLiquidity);
@@ -154,7 +209,14 @@ describe("SimpleAMM", function () {
 
       await expect(amm.connect(bob).deposit(amountA, amountB))
         .to.emit(amm, "LiquidityDeposited")
-        .withArgs(bob.address, amountA, amountB, expectedMint);
+        .withArgs(
+          bob.address,
+          amountA,
+          amountB,
+          expectedMint,
+          LIQUIDITY + amountA,
+          LIQUIDITY + amountB
+        );
 
       expect(await amm.getLiquidity(bob.address)).to.equal(expectedMint);
     });
@@ -168,7 +230,14 @@ describe("SimpleAMM", function () {
 
       await expect(amm.connect(bob).deposit(amountA, amountB))
         .to.emit(amm, "LiquidityDeposited")
-        .withArgs(bob.address, amountA, amountB, expectedMint);
+        .withArgs(
+          bob.address,
+          amountA,
+          amountB,
+          expectedMint,
+          LIQUIDITY + amountA,
+          LIQUIDITY + amountB
+        );
     });
 
     it("supports tiny first deposits that exercise sqrt(y <= 3)", async function () {
@@ -253,7 +322,9 @@ describe("SimpleAMM", function () {
 
       await expect(amm.connect(alice).redeem(liquidity))
         .to.emit(amm, "LiquidityRedeemed")
-        .withArgs(alice.address, LIQUIDITY, LIQUIDITY, liquidity);
+        .withArgs(alice.address, LIQUIDITY, LIQUIDITY, liquidity, 0, 0)
+        .and.to.emit(amm, "Sync")
+        .withArgs(0, 0);
 
       expect(await amm.totalLiquidity()).to.equal(0);
       expect(await amm.reserveA()).to.equal(0);
@@ -366,14 +437,19 @@ describe("SimpleAMM", function () {
           expectedOut
         )
       )
-        .to.emit(amm, "TokensSwapped")
+        .to.emit(amm, "Swap")
         .withArgs(
           bob.address,
-          await tokenA.getAddress(),
+          bob.address,
           SWAP_AMOUNT,
-          await tokenB.getAddress(),
-          expectedOut
-        );
+          0,
+          0,
+          expectedOut,
+          reserveABefore + SWAP_AMOUNT,
+          reserveBBefore - expectedOut
+        )
+        .and.to.emit(amm, "Sync")
+        .withArgs(reserveABefore + SWAP_AMOUNT, reserveBBefore - expectedOut);
 
       expect(await tokenB.balanceOf(bob.address)).to.equal(
         bobBBefore + expectedOut
@@ -392,11 +468,24 @@ describe("SimpleAMM", function () {
         await amm.reserveA()
       );
 
-      await amm.connect(bob).swap(
-        await tokenB.getAddress(),
-        SWAP_AMOUNT,
-        expectedOut
-      );
+      await expect(
+        amm.connect(bob).swap(
+          await tokenB.getAddress(),
+          SWAP_AMOUNT,
+          expectedOut
+        )
+      )
+        .to.emit(amm, "Swap")
+        .withArgs(
+          bob.address,
+          bob.address,
+          0,
+          SWAP_AMOUNT,
+          expectedOut,
+          0,
+          LIQUIDITY - expectedOut,
+          LIQUIDITY + SWAP_AMOUNT
+        );
 
       expect(await amm.reserveB()).to.equal(LIQUIDITY + SWAP_AMOUNT);
       expect(await amm.reserveA()).to.equal(LIQUIDITY - expectedOut);

@@ -7,7 +7,11 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "coverage": "hardhat coverage",
-    "verify": "hardhat compile && hardhat test && hardhat coverage"
+    "verify": "hardhat compile && hardhat test && hardhat coverage",
+    "node": "hardhat node",
+    "export-abis": "node scripts/export-abis.js",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia"
   },
   "repository": {
     "type": "git",
@@ -30,6 +34,7 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "chai": "^4.5.0",
+    "dotenv": "^17.4.2",
     "hardhat": "^2.28.6",
     "solidity-coverage": "^0.8.17"
   },

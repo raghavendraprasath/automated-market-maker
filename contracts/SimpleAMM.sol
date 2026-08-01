@@ -39,7 +39,9 @@ contract SimpleAMM {
         address indexed provider,
         uint256 amountA,
         uint256 amountB,
-        uint256 liquidityMinted
+        uint256 liquidityMinted,
+        uint256 reserveA,
+        uint256 reserveB
     );
 
     /// @notice Emitted whenever liquidity is redeemed.
@@ -47,17 +49,29 @@ contract SimpleAMM {
         address indexed provider,
         uint256 amountA,
         uint256 amountB,
-        uint256 liquidityBurned
+        uint256 liquidityBurned,
+        uint256 reserveA,
+        uint256 reserveB
     );
 
     /// @notice Emitted whenever tokens are swapped.
-    event TokensSwapped(
-        address indexed trader,
-        address tokenIn,
-        uint256 amountIn,
-        address tokenOut,
-        uint256 amountOut
+    /// @dev Mirrors `UniswapV2Pair.Swap` (per-token amounts in / out) and additionally carries the
+    /// post-swap reserves, so a client can recover the pool's mid price at the swap block from a
+    /// single `eth_getLogs` response instead of an archive state query.
+    event Swap(
+        address indexed sender,
+        address indexed to,
+        uint256 amountAIn,
+        uint256 amountBIn,
+        uint256 amountAOut,
+        uint256 amountBOut,
+        uint256 reserveA,
+        uint256 reserveB
     );
+
+    /// @notice Emitted after every reserve change, like `UniswapV2Pair.Sync`.
+    /// @dev Lets a client replay the full history of the `x * y = k` curve from logs alone.
+    event Sync(uint256 reserveA, uint256 reserveB);
 
     // ------------------------------------------------------------------------
     // Custom Errors
@@ -103,6 +117,54 @@ contract SimpleAMM {
     /// @param provider Address of the liquidity provider.
     function getLiquidity(address provider) external view returns (uint256) {
         return liquidityBalance[provider];
+    }
+
+    /// @notice Returns everything a UI needs to render the pool for one account in a single call.
+    /// @param account Address whose liquidity share is reported.
+    function poolState(
+        address account
+    )
+        external
+        view
+        returns (
+            address tokenAAddress,
+            address tokenBAddress,
+            uint256 currentReserveA,
+            uint256 currentReserveB,
+            uint256 liquiditySupply,
+            uint256 accountLiquidity
+        )
+    {
+        return (
+            address(tokenA),
+            address(tokenB),
+            reserveA,
+            reserveB,
+            totalLiquidity,
+            liquidityBalance[account]
+        );
+    }
+
+    /// @notice Previews a swap against the live reserves.
+    /// @param tokenIn Address of the token being sold into the pool.
+    /// @param amountIn Amount of `tokenIn` to sell.
+    /// @return tokenOut Address of the token that would be received.
+    /// @return amountOut Amount of `tokenOut` that would be received.
+    function quoteSwap(
+        address tokenIn,
+        uint256 amountIn
+    ) external view returns (address tokenOut, uint256 amountOut) {
+        bool isTokenA = tokenIn == address(tokenA);
+        if (!isTokenA && tokenIn != address(tokenB)) {
+            revert InvalidSwapToken();
+        }
+
+        tokenOut = isTokenA ? address(tokenB) : address(tokenA);
+        amountOut = getAmountOut(
+            amountIn,
+            isTokenA ? reserveA : reserveB,
+            isTokenA ? reserveB : reserveA
+        );
     }
 
     /// @notice Quotes output amount for a given input using the constant-product formula.
@@ -164,7 +226,15 @@ contract SimpleAMM {
         totalLiquidity += liquidityMinted;
         liquidityBalance[msg.sender] += liquidityMinted;
 
-        emit LiquidityDeposited(msg.sender, amountA, amountB, liquidityMinted);
+        emit LiquidityDeposited(
+            msg.sender,
+            amountA,
+            amountB,
+            liquidityMinted,
+            reserveA,
+            reserveB
+        );
+        emit Sync(reserveA, reserveB);
     }
 
     /// @notice Burns liquidity shares and returns the proportional underlying tokens.
@@ -193,7 +263,15 @@ contract SimpleAMM {
             revert TransferFailed();
         }
 
-        emit LiquidityRedeemed(msg.sender, amountA, amountB, liquidity);
+        emit LiquidityRedeemed(
+            msg.sender,
+            amountA,
+            amountB,
+            liquidity,
+            reserveA,
+            reserveB
+        );
+        emit Sync(reserveA, reserveB);
     }
 
     /// @notice Swaps an exact input amount of one pool token for the other.
@@ -244,18 +322,34 @@ contract SimpleAMM {
         if (isTokenA) {
             reserveA = reserveIn + amountIn;
             reserveB = reserveOut - amountOut;
+
+            emit Swap(
+                msg.sender,
+                msg.sender,
+                amountIn,
+                0,
+                0,
+                amountOut,
+                reserveA,
+                reserveB
+            );
         } else {
             reserveB = reserveIn + amountIn;
             reserveA = reserveOut - amountOut;
+
+            emit Swap(
+                msg.sender,
+                msg.sender,
+                0,
+                amountIn,
+                amountOut,
+                0,
+                reserveA,
+                reserveB
+            );
         }
 
-        emit TokensSwapped(
-            msg.sender,
-            tokenIn,
-            amountIn,
-            address(outputToken),
-            amountOut
-        );
+        emit Sync(reserveA, reserveB);
     }
 
     // ------------------------------------------------------------------------

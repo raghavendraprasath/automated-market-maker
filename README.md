@@ -4,6 +4,12 @@
 
 **Student:** Raghavendra Prasath Sridhar
 
+> **Homework 5 note:** this repository now also contains the web3 UI for the AMM. The contract was
+> extended for it (Uniswap-style `Swap` event carrying reserves, a `Sync` event, `poolState` /
+> `quoteSwap` views, and a `SimpleAMMFactory`), so the suite is now **47 passing** at 100% coverage
+> instead of the 38 described below. See [`HOMEWORK5.md`](HOMEWORK5.md) for the UI, the Sepolia
+> deployment, and the `eth_getLogs` work.
+
 ---
 
 # Assignment Overview
