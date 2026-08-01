@@ -16,7 +16,7 @@ Homework 5 extended the contract (a Uniswap-style `Swap` event carrying reserves
 coverage rather than the 38 described in the Homework 4 sections below. Everything about both
 assignments — contracts, tests, coverage, UI, log decoding, and deployment — is in this one document.
 
-**Live UI:** [https://automated-market-maker-six.vercel.app](https://automated-market-maker-six.vercel.app)
+**Live UI:** [https://amm-console.vercel.app](https://amm-console.vercel.app)
 **Live contracts:** Ethereum Sepolia — factory
 [`0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA`](https://sepolia.etherscan.io/address/0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA),
 three seeded pools ([all addresses](#deployed-addresses-sepolia))
@@ -358,7 +358,7 @@ factory contract was added so the pool list is discovered on-chain rather than h
 | Execution price distribution of past swaps | [`web/components/PriceDistributionChart.tsx`](web/components/PriceDistributionChart.tsx) |
 | Historical data over ETH JSON-RPC | [`web/lib/logs.ts`](web/lib/logs.ts) — `eth_getLogs` + `decodeEventLog` |
 | Contracts on a public testnet | Sepolia, via [`scripts/deploy.js`](scripts/deploy.js) |
-| UI on a hosting provider | [Vercel](https://automated-market-maker-six.vercel.app) — see [Deployment](#part-6--running-locally-and-deploying) |
+| UI on a hosting provider | [Vercel](https://amm-console.vercel.app) — see [Deployment](#part-6--running-locally-and-deploying) |
 
 ---
 
@@ -816,7 +816,7 @@ message instead of a silently empty chart. drpc's free plan also rejects JSON-RP
 three, which the UI never trips because `http()` is configured without batching and `useReadContracts`
 goes through a single multicall3 `eth_call`.
 
-**Live URL:** [https://automated-market-maker-six.vercel.app](https://automated-market-maker-six.vercel.app)
+**Live URL:** [https://amm-console.vercel.app](https://amm-console.vercel.app)
 
 ---
 
@@ -901,7 +901,7 @@ automated-market-maker/
 | 4 | Reserves curve chart with point P | `ReservesCurveChart` |
 | 5 | Execution price distribution of past swaps | `PriceDistributionChart`, from `eth_getLogs` |
 | 6 | Contracts on a public testnet | Sepolia — [addresses](#deployed-addresses-sepolia), factory [`0x4717C3…21dA`](https://sepolia.etherscan.io/address/0x4717C31b4f3A56f3e6c1b4BbF18fd253f4E621dA) |
-| 7 | UI on a hosting provider | Vercel — [automated-market-maker-six.vercel.app](https://automated-market-maker-six.vercel.app) |
+| 7 | UI on a hosting provider | Vercel — [amm-console.vercel.app](https://amm-console.vercel.app) |
 
 ---
 
